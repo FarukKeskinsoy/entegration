@@ -1,132 +1,94 @@
-const express = require("express");
-const cors = require('cors');
+const express = require('express');
 const axios = require('axios');
-
-
+const jsdom = require("jsdom");
 const app = express();
-app.use(cors());
-app.use(express.json())
+const port = 8080;
+const http = require('http');
 
-
-app.get('/', (req, res) => {
-    res.send('bank entegration is running..');
+const hostname = '127.0.0.1';
+const hostnamesql = '193.203.168.40';
+const hostnameci = '213.14.168.240';
+const hostnameweb = '45.13.252.197';
+const server = http.createServer((req, res) => {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/plain');
+  res.end('Hello, World!\n');
 });
-var uid= 'U171091266'
-var pwd= 'HIF60X06V8'
-var localAddress= '213.14.168.240' // Set the IP address you want to use
 
-// async function fetchBankData() {
-//     try {
-//       // 1. Fetch the latest BankInfo
-//     //   const bankInfoResponse = await axios.get('http://your-api-url/get-latest-bank-info');
-//     //   const bankInfo = bankInfoResponse.data;
-  
-//     //   if (!bankInfo) {
-//     //     throw new Error("Banka bilgileri bulunamadı.");
-//     //   }
-  
-//       // 2. Initialize HTTP client
-  
-//       // 3. Make the initial HTTP request to the login page
-//       const initialResponse = await axios("https://posmatik2.isbank.com.tr/LoginPanel.html");
-  
-//       if (!initialResponse.status === 200) {
-//         throw new Error("Login sayfası yüklenirken hata oluştu.");
-//       }
-  
-//       // 4. Create form data for login
-//       const loginData = new FormData();
-//       loginData.append('uid', bankInfo.UserName);
-//       loginData.append('pwd', bankInfo.Sifre);
-  
-//       // 5. Perform the login POST request
-//       const loginResponse = await axios.post("https://posmatik2.isbank.com.tr/Authenticate.aspx", loginData);
-  
-//       // 6. Process the response after login
-//       if (loginResponse.status === 200) {
-//         const responseContent = loginResponse.data;
-  
-//         // Process XML content
-//         parseString(responseContent, async (err, result) => {
-//           if (err) throw err;
-  
-//           const xmlDocument = result;
-  
-//           // Process general bank info
-//           const generalBankInfo = {
-//             Tarih: new Date(xmlDocument.Tarih),
-//             Saat: xmlDocument.Saat,
-//             BankaKodu: xmlDocument.bankaKodu,
-//             BankaAdi: xmlDocument.bankaAdi,
-//             BankaVergiDairesi: xmlDocument.bankaVergiDairesi,
-//             BankaVergiNumarasi: xmlDocument.bankaVergiNumarasi
-//           };
-  
-//           // Save general bank info to the database
-  
-//           // Process accounts
-//           const accounts = xmlDocument.Hesaplar.Hesap;
-//           for (const accountNode of accounts) {
-//             const account = {
-//               // Process account details
-//             };
-  
-//             // Save account to the database
-  
-//             // Process movements
-//             const movements = accountNode.Hareketler.Hareket;
-//             for (const movementNode of movements) {
-//               const movement = {
-//                 // Process movement details
-//               };
-  
-//               // Save movement to the database
-//             }
-//           }
-  
-//           console.log("Banka bilgileri başarıyla alındı ve veritabanına kaydedildi!");
-//         });
-//       } else {
-//         throw new Error("Oturum açma işlemi başarısız.");
-//       }
-//     } catch (error) {
-//       console.error("Error:", error.message);
-//     }
-//   }
-  
-//   // Call the function
-//   fetchBankData();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const login =async()=>{
-    return "hi"
-}
-app.post('/is', async (req, res) => {
-  const {user,pass}=req.body
-    try {
-      const result = await login(user,pass);
-  
-      res.status(200).json({ result });
-      console.log({ result });
-    } catch (error) {
-      console.error('Error in /money endpoint:', error);
-      } 
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  // Create an axios instance with a custom config
+  const axiosInstance = {
+    method:"get",
+    url:"https://posmatik2.isbank.com.tr/LoginPanel.html",
     
-  });
+  };
+ 
 
-app.get('/is', async (req, res) => {
-    
-    try {
-      const result = await login();
-  
-      res.status(200).json({ result:"başarılı" });
-      console.log({ result });
-    } catch (error) {
-      console.error('Error in /money endpoint:', error);
-      } 
-    
-  });
+  try {
+    // Step 1: Get the login page and extract form data
+    const loginPageResponse = await axios(axiosInstance.url);
+    const formData = {
+      uid: username,
+      pwd: password,
+    };
+    console.log(loginPageResponse)
 
+    // Extract form data using DOMParser
+    const dom = new jsdom.JSDOM(loginPageResponse.data)
+    const inputElements = dom.window.document.querySelectorAll('form[name="input"] input');
+    inputElements.forEach(input => {
+      const fieldName = input.getAttribute('name');
+      const fieldValue = input.value;
+      formData[fieldName] = fieldValue;
+    });
 
-  app.listen(process.env.PORT || 8805 ,()=>{
-    console.log("bank entegration is running..!")
+    console.log(inputElements)
+
+    var data= new FormData()
+    data.append('uid', username);
+    data.append('pwd', password);
+    const axiosInstance2 = {
+      method:"post",
+      url:"https://posmatik2.isbank.com.tr/Authenticate.aspx",
+      // proxy: {
+      //   host: '193.203.168.40',
+      //   //port: 443,
+      //   //protocol: 'http',
+      // },
+      host:"45.13.252.197",
+     
+      headers: {
+        'Accept-Encoding': 'gzip, deflate',
+        "x-forwarded-for":hostnamesql,
+      },
+      maxRedirects: 0, // Disable automatic redirects
+      data:data
+      
+    };
+
+    // Step 2: Post the login data to authenticate
+    const authenticationResponse = await axios(axiosInstance2);
+
+    // Step 3: Process the XML result
+    const xmlResult = authenticationResponse.data;
+    // Process the XML result as needed
+
+    // Return the XML result or any other response to the client
+    res.status(200).send(xmlResult);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).send('Internal Server Error');
+  }
 });
+
+app.listen(port,"0.0.0.0", () => {
+  console.log(`Server is running on port ${port}`);
+});
+// server.listen(port, hostname, () => {
+//   console.log(`Server running at http://${hostname}:${port}/`);
+//   });
